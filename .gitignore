@@ -92,4 +92,6 @@ ENV/
 
 # Pyenet specific files
 enet.c
-enet/
+
+# since it's referenced as a submodule we don't need to ignore it
+# enet/
