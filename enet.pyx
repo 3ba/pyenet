@@ -181,6 +181,32 @@ cdef extern from "enet/enet.h":
     # Socket functions
     int enet_socket_send(ENetSocket socket, ENetAddress *address, ENetBuffer *buffer, size_t size)
 
+cdef extern from "enet/socks5.h":
+    ctypedef enum ENetSocks5State:
+        ENET_SOCKS5_STATE_DISCONNECTED = 0
+        ENET_SOCKS5_STATE_SEND_GREETING_REQUEST = 1
+        ENET_SOCKS5_STATE_RECEIVE_GREETING_RESPONSE = 2
+        ENET_SOCKS5_STATE_SEND_AUTH_REQUEST = 3
+        ENET_SOCKS5_STATE_RECEIVE_AUTH_RESPONSE = 4
+        ENET_SOCKS5_STATE_SEND_CONNECT_REQUEST = 5
+        ENET_SOCKS5_STATE_RECEIVE_CONNECT_RESPONSE = 6
+        ENET_SOCKS5_STATE_CONNECTED = 7
+        ENET_SOCKS5_STATE_VERSION_MISMATCH = 8
+        ENET_SOCKS5_STATE_AUTH_METHOD_NOT_SUPPORTED = 9
+        ENET_SOCKS5_STATE_AUTH_FAILURE = 10
+        ENET_SOCKS5_STATE_ADDRESS_TYPE_NOT_SUPPORTED = 11
+        ENET_SOCKS5_STATE_CONNECT_FAILURE = 12
+
+    ctypedef struct ENetSocks5ProxyInfo:
+        ENetAddress address
+        enet_uint8 username[255]
+        enet_uint8 password[255]
+
+    # SOCKS5 proxy functions
+    void enet_socks5_set_address(ENetSocks5ProxyInfo *proxyInfo, ENetAddress address)
+    void enet_socks5_set_auth(ENetSocks5ProxyInfo *proxyInfo, const char *username, const char *password)
+    void enet_host_set_proxy(ENetHost *host, ENetSocks5ProxyInfo *proxyInfo)
+
 cdef enum:
     MAXHOSTNAME = 257
 
@@ -204,6 +230,20 @@ PEER_STATE_DISCONNECT_LATER = ENET_PEER_STATE_DISCONNECT_LATER
 PEER_STATE_DISCONNECTING = ENET_PEER_STATE_DISCONNECTING
 PEER_STATE_ACKNOWLEDGING_DISCONNECT = ENET_PEER_STATE_ACKNOWLEDGING_DISCONNECT
 PEER_STATE_ZOMBIE = ENET_PEER_STATE_ZOMBIE
+
+SOCKS5_STATE_DISCONNECTED = ENET_SOCKS5_STATE_DISCONNECTED
+SOCKS5_STATE_SEND_GREETING_REQUEST = ENET_SOCKS5_STATE_SEND_GREETING_REQUEST
+SOCKS5_STATE_RECEIVE_GREETING_RESPONSE = ENET_SOCKS5_STATE_RECEIVE_GREETING_RESPONSE
+SOCKS5_STATE_SEND_AUTH_REQUEST = ENET_SOCKS5_STATE_SEND_AUTH_REQUEST
+SOCKS5_STATE_RECEIVE_AUTH_RESPONSE = ENET_SOCKS5_STATE_RECEIVE_AUTH_RESPONSE
+SOCKS5_STATE_SEND_CONNECT_REQUEST = ENET_SOCKS5_STATE_SEND_CONNECT_REQUEST
+SOCKS5_STATE_RECEIVE_CONNECT_RESPONSE = ENET_SOCKS5_STATE_RECEIVE_CONNECT_RESPONSE
+SOCKS5_STATE_CONNECTED = ENET_SOCKS5_STATE_CONNECTED
+SOCKS5_STATE_VERSION_MISMATCH = ENET_SOCKS5_STATE_VERSION_MISMATCH
+SOCKS5_STATE_AUTH_METHOD_NOT_SUPPORTED = ENET_SOCKS5_STATE_AUTH_METHOD_NOT_SUPPORTED
+SOCKS5_STATE_AUTH_FAILURE = ENET_SOCKS5_STATE_AUTH_FAILURE
+SOCKS5_STATE_ADDRESS_TYPE_NOT_SUPPORTED = ENET_SOCKS5_STATE_ADDRESS_TYPE_NOT_SUPPORTED
+SOCKS5_STATE_CONNECT_FAILURE = ENET_SOCKS5_STATE_CONNECT_FAILURE
 
 ENET_CRC32 = 1
 
@@ -839,6 +879,64 @@ cdef class Event:
 from weakref import WeakValueDictionary
 cdef host_static_instances = WeakValueDictionary()
 
+cdef class Socks5ProxyInfo:
+    """
+    Socks5ProxyInfo (Address address=None, username=None, password=None)
+
+    ATTRIBUTES
+
+        Address address     The SOCKS5 proxy server address.
+
+    DESCRIPTION
+
+        Holds the configuration for a SOCKS5 proxy: the proxy server
+        address and optional username/password credentials. Pass an
+        instance to Host.set_proxy to route a host's traffic through it.
+    """
+
+    cdef ENetSocks5ProxyInfo _enet_proxy_info
+
+    def __init__(self, Address address=None, username=None, password=None):
+        if address is not None:
+            self.set_address(address)
+        if username is not None or password is not None:
+            self.set_auth(username, password)
+
+    def set_address(self, Address address):
+        """
+        set_address (Address address)
+
+        Sets the proxy server host and port.
+        """
+        enet_socks5_set_address(&self._enet_proxy_info, address._enet_address)
+
+    def set_auth(self, username=None, password=None):
+        """
+        set_auth (username=None, password=None)
+
+        Sets the SOCKS5 username/password credentials. Pass None for either
+        value to clear it. Each may be at most 255 bytes.
+        """
+        cdef bytes u = None
+        cdef bytes p = None
+        cdef char *uptr = NULL
+        cdef char *pptr = NULL
+
+        if username is not None:
+            u = username if isinstance(username, bytes) else bytes(username, "ascii")
+            uptr = u
+        if password is not None:
+            p = password if isinstance(password, bytes) else bytes(password, "ascii")
+            pptr = p
+
+        enet_socks5_set_auth(&self._enet_proxy_info, uptr, pptr)
+
+    property address:
+        def __get__(self):
+            a = Address(None, 0)
+            (<Address> a)._enet_address = self._enet_proxy_info.address
+            return a
+
 cdef class Host:
     """
     Host (Address address, int peerCount, int channelLimit,
@@ -977,6 +1075,17 @@ cdef class Host:
 
         if self._enet_host:
             return enet_host_compress_with_range_coder(self._enet_host)
+
+    def set_proxy(self, Socks5ProxyInfo proxyInfo):
+        """
+        set_proxy (Socks5ProxyInfo proxyInfo)
+
+        Configures the host to route its traffic through the given SOCKS5
+        proxy described by 'proxyInfo'.
+        """
+
+        if self._enet_host:
+            enet_host_set_proxy(self._enet_host, &proxyInfo._enet_proxy_info)
 
     property socket:
         def __get__(self):

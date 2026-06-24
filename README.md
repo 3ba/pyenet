@@ -3,8 +3,8 @@
 pyenet is a python wrapper for the ENet library by Lee Salzman,
  http://enet.bespin.org
 
-It was originally written by Scott Robinson <scott@tranzoa.com> and is
-currently maintained by Andrew Resch <andrewresch@gmail.com>
+This fork is modified to build against [3ba/enet](https://github.com/3ba/enet/tree/ubisoft),
+which adds support for the Ubisoft protocol and SOCKS5 proxy implementation.
 
 ## License
 pyenet is licensed under the BSD license, see LICENSE for details.
@@ -17,11 +17,15 @@ obviously, Python.
 
 ## Installation
 
-The first step is to download the enet sources from http://enet.bespin.org and
-extract it to the enet/ directory in pyenet's source directory.  You could also
-check out the enet source code from their CVS repository.
-
-This version of pyenet requires enet 1.3.
+The enet sources live in the enet/ submodule, so clone pyenet recursively to
+pull them in:
+```
+$ git clone --recursive <repository-url>
+```
+If you already cloned without `--recursive`, fetch the submodule with:
+```
+$ git submodule update --init --recursive
+```
 
 Next step is to run the setup.py build:
 ```

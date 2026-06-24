@@ -1,5 +1,5 @@
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup
+from setuptools.extension import Extension
 from Cython.Distutils import build_ext
 
 import glob
@@ -10,8 +10,9 @@ source_files = ["enet.pyx"]
 _enet_files = glob.glob("enet/*.c")
 
 if not _enet_files:
-    print("You need to download and extract the enet 1.3 source to enet/")
-    print("Download the source from: http://enet.bespin.org/Downloads.html")
+    print("The enet/ submodule is empty")
+    print("If you didn't clone with --recursive, fetch with:")
+    print("    git submodule update --init --recursive")
     print("See the README for more instructions")
     sys.exit(1)
 
